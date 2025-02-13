@@ -1,0 +1,88 @@
+# variable random equal 51579
+# variable T equal 200
+log log.heatflux-$T-${random}
+
+variable dt equal 0.001
+variable StepNPT equal 100000
+variable StepNVE equal 500000
+variable nevery equal 10
+variable StepNveHeat equal 2000000
+
+units metal
+boundary p p p 
+atom_style atomic
+
+read_data data.in
+#pair_style  allegro3232
+#pair_coeff * * dep.pth Cu Se
+pair_style mlip mlip.ini
+pair_coeff * *
+
+neighbor 2.0 bin 
+neigh_modify delay 10 check yes 
+
+timestep    ${dt}
+variable Tdamp equal "v_dt * 100"
+variable Pdamp equal "v_dt * 1000"
+velocity	all create $T ${random} mom yes rot yes dist gaussian
+
+compute         myKE all ke/atom
+compute         myPE all pe/atom
+compute         myStress all stress/atom NULL virial
+compute         flux all heat/flux myKE myPE myStress
+##variable        JJ vector "c_flux/v_vol"
+variable      Jx equal c_flux[1]/vol
+variable      Jy equal c_flux[2]/vol
+variable      Jz equal c_flux[3]/vol
+variable      Jx1 equal c_flux[4]/vol
+variable      Jy1 equal c_flux[5]/vol
+variable      Jz1 equal c_flux[6]/vol
+
+
+variable          st    equal step
+variable          Et    equal etotal
+variable          Ep    equal pe
+variable          Ek    equal ke
+variable          tmp   equal temp
+variable          vol   equal vol
+variable          pr    equal press/10000
+variable          sxx   equal pxx/10000
+variable          syy   equal pyy/10000
+variable          szz   equal pzz/10000
+variable          sxy   equal pxy/10000
+variable          sxz   equal pxz/10000
+variable          syz   equal pyz/10000
+thermo		1000
+
+fix statdump_heat all print 1000 "${st} ${Et} ${vol} ${Ep} ${Ek} ${tmp} ${pr} ${sxx} ${syy} ${szz} &
+${sxy} ${sxz} ${syz}" screen no file heatflux-$T-${random}.stat 
+
+fix 100 all npt temp ${T} ${T} ${Tdamp} iso 0.0 0.0 ${Pdamp}
+run		${StepNPT}
+write_restart restart-${T}-${random}.NPT
+
+unfix 100
+velocity	all scale $T 
+velocity all zero linear
+fix 100 all nve
+
+run  ${StepNVE}
+
+reset_timestep  0
+
+#compute         myKE all ke/atom
+#compute         myPE all pe/atom
+#compute         myStress all centroid/stress/atom NULL virial
+#compute         flux all heat/flux myKE myPE myStress
+##variable        JJ vector "c_flux/v_vol"
+#variable      Jx equal c_flux[1]/vol
+#variable      Jy equal c_flux[2]/vol
+#variable      Jz equal c_flux[3]/vol
+#variable      Jx1 equal c_flux[4]/vol
+#variable      Jy1 equal c_flux[5]/vol
+#variable      Jz1 equal c_flux[6]/vol
+
+fix heat all print ${nevery} "${Jx} ${Jy} ${Jz} ${Jx1} ${Jy1} ${Jz1}" screen no file  &
+heatfulx-$T-${random}.dat title "Jx Jy Jz Jx1 Jy1 Jz1"
+
+run  ${StepNveHeat}
